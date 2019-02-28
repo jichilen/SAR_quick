@@ -49,7 +49,7 @@ def train(args, local_rank, distributed, trainset):
         # print(key)
         if not value.requires_grad:
             continue
-        lr = args.lr # cfg.SOLVER.BASE_LR
+        lr = args.lr  # cfg.SOLVER.BASE_LR
         weight_decay = 0.0001  # cfg.SOLVER.WEIGHT_DECAY
         if "bias" in key:
             lr = args.lr * 2  # cfg.SOLVER.BASE_LR * cfg.SOLVER.BIAS_LR_FACTOR
@@ -61,11 +61,11 @@ def train(args, local_rank, distributed, trainset):
     optimizer = torch.optim.Adam(params, lr)
     model.train()
     # data loader
-    
+
     sampler = torch.utils.data.sampler.RandomSampler(trainset)
     batch_sampler = torch.utils.data.sampler.BatchSampler(
-            sampler, args.batch_size, drop_last=True
-        )
+        sampler, args.batch_size, drop_last=True
+    )
     trainloader = data.DataLoader(
         trainset, batch_sampler=batch_sampler, num_workers=2)
     # trainloader = data.DataLoader(
@@ -73,9 +73,9 @@ def train(args, local_rank, distributed, trainset):
     total_loss = 0
     dis_val = 10
     epoc_t = 201
-    save_epoc=1
+    save_epoc = 1
     num_b = len(trainloader)
-    outstr = "epoc: {:3d}({}), iter: {:4d}({}), loss: {:.4f}, ave_l: {:.4f}, time: {:.4f}"
+    outstr = "epoc: {:3d}({}), iter: {:4d}({}), loss: {:.4f}, ave_l: {:.4f}, time: {:.4f}, lr: {:.5f}"
     start_training_time = time.time()
     for epoc in range(epoc_t):
         for batch_idx, (imgs, targets) in enumerate(trainloader):
@@ -88,17 +88,19 @@ def train(args, local_rank, distributed, trainset):
             optimizer.step()
             total_loss += losses.item()
             if batch_idx % dis_val == 0:
-                print(outstr.format(epoc, epoc_t, batch_idx, num_b, losses.item(
-                ), total_loss / dis_val, time.time() - start_training_time))
+                print(optimizer.param_groups[0])
+                print(outstr.format(epoc, epoc_t, batch_idx, num_b, losses.item(), total_loss /
+                                    dis_val, time.time() - start_training_time), optimizer.param_groups[0]["lr"])
                 total_loss = 0
                 start_training_time = time.time()
-        if epoc > 0 and epoc % save_epoc == 0:
+        if epoc % save_epoc == 0:
             state = {'net': model.state_dict(
             ), 'optimizer': optimizer.state_dict(), 'epoc': epoc}
             torch.save(state, './model/save_e_' + str(epoc) + '.th')
-            if int(epoc / save_epoc)>3:
-                if os.path.exists('./model/save_e_' + str(epoc-save_epoc*3) + '.th'):
-                    os.remove('./model/save_e_' + str(epoc-save_epoc*3) + '.th')
+            if int(epoc / save_epoc) > 3:
+                if os.path.exists('./model/save_e_' + str(epoc - save_epoc * 3) + '.th'):
+                    os.remove('./model/save_e_' +
+                              str(epoc - save_epoc * 3) + '.th')
 
 
 def test(args, local_rank, distributed, trainset):
@@ -107,7 +109,7 @@ def test(args, local_rank, distributed, trainset):
     model = Model(args)
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model.to(device)
-    state = torch.load('./model/save_e_150.th')
+    state = torch.load('./model/save_e_3.th')
     model.load_state_dict(state['net'])
     model.eval()
     # data loader
@@ -164,7 +166,7 @@ def main():
     )
 
     args = parser.parse_args()
-    args.batch_size = 24
+    args.batch_size = 50
     args.num_layers = 2
     args.featrue_layers = 512
     args.hidden_dim = 512
@@ -174,13 +176,11 @@ def main():
     args.max_h = 6
     args.max_w = 40
     args.embedding_size = 512
-    args.lr=0.02
-    args.checkpoint_dir='./model/adam'
+    args.lr = 0.002
+    args.checkpoint_dir = './model/adam'
 
     if not os.path.exists(args.checkpoint_dir):
         os.makedirs(args.checkpoint_dir)
-
-    sys.stdout = Logger(args.checkpoint_dir+'/log.txt')
 
     num_gpus = int(os.environ["WORLD_SIZE"]
                    ) if "WORLD_SIZE" in os.environ else 1
@@ -203,6 +203,7 @@ def main():
         ])
     else:
         transform = transforms.Compose([
+            transforms.Resize((48, 160)),
             transforms.ToTensor(),
             transforms.Normalize((0.4914, 0.4822, 0.4465),
                                  (0.2023, 0.1994, 0.2010)),
@@ -211,6 +212,7 @@ def main():
                          './data/icpr/crop/', transform)
     # trainset = prepare_data(args.save_dir, args.data_name, args.is_training)
     if args.is_training:
+        sys.stdout = Logger(args.checkpoint_dir + '/log.txt')
         train(args, args.local_rank, args.distributed, trainset)
     else:
         test(args, args.local_rank, args.distributed, trainset)
