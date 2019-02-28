@@ -1,0 +1,13 @@
+init
+Namespace(batch_size=50, checkpoint_dir='./model/adam', config_file='', data_name=['icpr'], distributed=False, embedding_size=512, featrue_layers=512, hidden_dim=512, hidden_dim_de=512, is_training=True, local_rank=0, lr=0.02, max_h=6, max_w=40, num_layers=2, opts=[], out_seq_len=30, save_dir='./data', skip_test=False, vocab_size=6498)
+epoc:   0(201), iter:    0(2740), loss: 8.7858, ave_l: 0.8786, time: 4.1649
+init
+Namespace(batch_size=24, checkpoint_dir='./model/adam', config_file='', data_name=['icpr'], distributed=False, embedding_size=512, featrue_layers=512, hidden_dim=512, hidden_dim_de=512, is_training=True, local_rank=0, lr=0.02, max_h=6, max_w=40, num_layers=2, opts=[], out_seq_len=30, save_dir='./data', skip_test=False, vocab_size=6498)
+epoc:   0(201), iter:    0(5710), loss: 8.8001, ave_l: 0.8800, time: 2.5582
+epoc:   0(201), iter:   10(5710), loss: 7.0387, ave_l: 11.2097, time: 20.2472
+epoc:   0(201), iter:   20(5710), loss: 5.7910, ave_l: 5.9260, time: 20.9282
+epoc:   0(201), iter:   30(5710), loss: 6.1478, ave_l: 5.8794, time: 20.3385
+epoc:   0(201), iter:   40(5710), loss: 6.9249, ave_l: 5.7629, time: 20.3802
+epoc:   0(201), iter:   50(5710), loss: 5.7094, ave_l: 5.8676, time: 20.8931
+epoc:   0(201), iter:   60(5710), loss: 4.8717, ave_l: 5.5493, time: 20.9180
+epoc:   0(201), iter:   70(5710), loss: 5.4996, ave_l: 5.5063, time: 20.6039
