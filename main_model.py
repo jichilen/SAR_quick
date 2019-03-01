@@ -57,8 +57,10 @@ def train(args, local_rank, distributed, trainset):
         params += [{"params": [value], "lr": lr, "weight_decay": weight_decay}]
 
     # cfg.SOLVER.MOMENTUM
-    # optimizer = torch.optim.SGD(params, lr, momentum=0.9)
-    optimizer = torch.optim.Adam(params, lr)
+    if args.optim=='adam':
+        optimizer = torch.optim.Adam(params, lr)
+    else:
+        optimizer = torch.optim.SGD(params, lr, momentum=0.9)
     model.train()
     # data loader
 
@@ -88,18 +90,17 @@ def train(args, local_rank, distributed, trainset):
             optimizer.step()
             total_loss += losses.item()
             if batch_idx % dis_val == 0:
-                print(optimizer.param_groups[0])
                 print(outstr.format(epoc, epoc_t, batch_idx, num_b, losses.item(), total_loss /
-                                    dis_val, time.time() - start_training_time), optimizer.param_groups[0]["lr"])
+                                    dis_val, time.time() - start_training_time, optimizer.param_groups[0]["lr"]))
                 total_loss = 0
                 start_training_time = time.time()
         if epoc % save_epoc == 0:
             state = {'net': model.state_dict(
             ), 'optimizer': optimizer.state_dict(), 'epoc': epoc}
-            torch.save(state, './model/save_e_' + str(epoc) + '.th')
+            torch.save(state, args.checkpoint_dir + str(epoc) + '.th')
             if int(epoc / save_epoc) > 3:
-                if os.path.exists('./model/save_e_' + str(epoc - save_epoc * 3) + '.th'):
-                    os.remove('./model/save_e_' +
+                if os.path.exists(args.checkpoint_dir + str(epoc - save_epoc * 3) + '.th'):
+                    os.remove(args.checkpoint_dir +
                               str(epoc - save_epoc * 3) + '.th')
 
 
@@ -166,7 +167,6 @@ def main():
     )
 
     args = parser.parse_args()
-    args.batch_size = 50
     args.num_layers = 2
     args.featrue_layers = 512
     args.hidden_dim = 512
@@ -176,8 +176,13 @@ def main():
     args.max_h = 6
     args.max_w = 40
     args.embedding_size = 512
-    args.lr = 0.002
-    args.checkpoint_dir = './model/adam'
+    args.batch_size = 50
+    ######
+    args.lr = 0.02
+    args.checkpoint_dir = './model/'#adam_lowlr/
+    args.optim=''
+    os.environ["CUDA_VISIBLE_DEVICES"] = str(0)
+    
 
     if not os.path.exists(args.checkpoint_dir):
         os.makedirs(args.checkpoint_dir)
@@ -192,8 +197,7 @@ def main():
             backend="nccl", init_method="env://"
         )
     else:
-        os.environ["CUDA_VISIBLE_DEVICES"] = str(0)
-
+        pass
     if args.is_training:
         transform = transforms.Compose([
             transforms.Resize((48, 160)),  # (h, w)

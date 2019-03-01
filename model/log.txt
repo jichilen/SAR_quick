@@ -1,3 +1,0 @@
-init
-Namespace(batch_size=50, checkpoint_dir='./model', config_file='', data_name=['icpr'], distributed=False, embedding_size=512, featrue_layers=512, hidden_dim=512, hidden_dim_de=512, is_training=True, local_rank=0, max_h=6, max_w=40, num_layers=4, opts=[], out_seq_len=30, save_dir='./data', skip_test=False, vocab_size=6498)
-epoc:   0(201), iter:    0(2740), loss: 8.8102, ave_l: 0.8810, time: 4.5537
