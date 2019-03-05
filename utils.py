@@ -9,7 +9,14 @@ import torch
 import torchvision.transforms as transforms
 from torch.utils.data.sampler import BatchSampler
 
-
+def get_char_dict():
+    chardict=[]
+    for i in range(1,37):
+        if i <11:
+            chardict.append(chr(ord('0')+i-1))
+        else:
+            chardict.append(chr(ord('a')+i-11))
+    return chardict
  
 class Logger(object):
     def __init__(self, filename="log.txt"):

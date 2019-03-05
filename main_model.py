@@ -16,10 +16,10 @@ import torchvision.transforms as transforms
 
 import resnet
 import recog
-from utils import prepare_data
+from utils import prepare_data,get_char_dict
 from utils import Logger
 # from utils import IterationBasedBatchSampler
-from mydataset import MyDataset
+from mydataset import MyDataset,My90kDataset
 
 
 class Model(nn.Module):
@@ -57,7 +57,7 @@ def train(args, local_rank, distributed, trainset):
         params += [{"params": [value], "lr": lr, "weight_decay": weight_decay}]
 
     # cfg.SOLVER.MOMENTUM
-    if args.optim=='adam':
+    if args.optim == 'adam':
         optimizer = torch.optim.Adam(params, lr)
     else:
         optimizer = torch.optim.SGD(params, lr, momentum=0.9)
@@ -76,6 +76,7 @@ def train(args, local_rank, distributed, trainset):
     dis_val = 10
     epoc_t = 201
     save_epoc = 1
+    save_batch = 500
     num_b = len(trainloader)
     outstr = "epoc: {:3d}({}), iter: {:4d}({}), loss: {:.4f}, ave_l: {:.4f}, time: {:.4f}, lr: {:.5f}"
     start_training_time = time.time()
@@ -94,6 +95,14 @@ def train(args, local_rank, distributed, trainset):
                                     dis_val, time.time() - start_training_time, optimizer.param_groups[0]["lr"]))
                 total_loss = 0
                 start_training_time = time.time()
+            if batch_idx>0 and batch_idx % save_batch == 0:
+                state = {'net': model.state_dict(
+                ), 'optimizer': optimizer.state_dict(), 'epoc': epoc}
+                torch.save(state, args.checkpoint_dir + str(batch_idx) + '.th')
+                if int(batch_idx / save_batch) > 3:
+                    if os.path.exists(args.checkpoint_dir + str(batch_idx - save_batch * 3) + '.th'):
+                        os.remove(args.checkpoint_dir +
+                                  str(batch_idx - save_batch * 3) + '.th')
         if epoc % save_epoc == 0:
             state = {'net': model.state_dict(
             ), 'optimizer': optimizer.state_dict(), 'epoc': epoc}
@@ -104,26 +113,44 @@ def train(args, local_rank, distributed, trainset):
                               str(epoc - save_epoc * 3) + '.th')
 
 
-def test(args, local_rank, distributed, trainset):
+def test(args, local_rank, distributed, testset):
     args.batch_size = 1
     print(args)
+    # with open('/data4/ydb/dataset/recognition/char_char_6489.txt')as f:
+    #     chardict=f.readlines()
+    chardict=get_char_dict()
     model = Model(args)
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model.to(device)
-    state = torch.load('./model/save_e_3.th')
+    state = torch.load('./model/500.th')
     model.load_state_dict(state['net'])
     model.eval()
     # data loader
-    trainloader = data.DataLoader(
-        trainset, batch_size=1, shuffle=True, num_workers=2)
-    for batch_idx, (imgs, targets) in enumerate(trainloader):
+    testloader = data.DataLoader(
+        testset, batch_size=1, shuffle=False, num_workers=2)
+    fp=open('result.txt','w')
+    for batch_idx, (imgs, targets) in enumerate(testloader):#tqdm.tqdm(testloader)
         imgs = imgs.cuda()
         targets = targets.cuda()
         seq, scores = model(imgs, targets)
-        print(seq)
-        print(scores)
-        print(targets)
-
+        seq=seq.numpy()
+        # print(seq)
+        seq=seq[0,1:]
+        targets=targets.cpu().numpy()
+        targets=targets[0]
+        re=[]
+        ret=[]
+        # print(seq)
+        for se in seq:
+            if se>args.vocab_size:
+                break
+            re.append(chardict[int(se)-1].strip())
+        for ta in targets:
+            ret.append(chardict[int(ta)-1].strip())
+        # fp.write(testset.imgs[batch_idx][0].split('/')[-1]+' '+''.join(re)+'\n')
+        print(''.join(re))
+        print(''.join(ret))
+        print()
     ''' test code
     img = torch.rand(2, 3, 48, 160).cuda()
     target = torch.zeros(2, 30).cuda()
@@ -150,8 +177,8 @@ def main():
                         help="path to save dataset", type=str,)
     parser.add_argument(
         "-d", "--data_name", default=['icpr'], help="path to save dataset", type=str, nargs='+',)
-    parser.add_argument("--is_training", default=True,
-                        help="training or evaluation", type=bool,)
+    parser.add_argument("--is_training", '-t', default=False,
+                        help="training or evaluation", action='store_true')
     parser.add_argument("--local_rank", type=int, default=0)
     parser.add_argument(
         "--skip-test",
@@ -170,20 +197,18 @@ def main():
     args.num_layers = 2
     args.featrue_layers = 512
     args.hidden_dim = 512
-    args.vocab_size = 6498
+    args.vocab_size = 36
     args.out_seq_len = 30
     args.hidden_dim_de = 512
     args.max_h = 6
     args.max_w = 40
     args.embedding_size = 512
-    args.batch_size = 50
+    args.batch_size = 40
     ######
     args.lr = 0.02
-    args.checkpoint_dir = './model/'#adam_lowlr/
-    args.optim=''
+    args.checkpoint_dir = './model/'  # adam_lowlr/
+    args.optim = ''
     os.environ["CUDA_VISIBLE_DEVICES"] = str(0)
-    
-
     if not os.path.exists(args.checkpoint_dir):
         os.makedirs(args.checkpoint_dir)
 
@@ -212,14 +237,21 @@ def main():
             transforms.Normalize((0.4914, 0.4822, 0.4465),
                                  (0.2023, 0.1994, 0.2010)),
         ])
-    trainset = MyDataset('./data/icpr/char2num.txt',
-                         './data/icpr/crop/', transform)
+    
     # trainset = prepare_data(args.save_dir, args.data_name, args.is_training)
     if args.is_training:
+        # trainset = MyDataset('./data/icpr/crop/',
+        #                  './data/icpr/char2num.txt', transform)
+        # ./2423/6/96_Flowerpots_29746.jpg flowerpots
+        trainset = MyDataset('/data2/data/90kDICT32px/','/data2/data/90kDICT32px/Synth_train_spilt.txt', transform)
         sys.stdout = Logger(args.checkpoint_dir + '/log.txt')
         train(args, args.local_rank, args.distributed, trainset)
     else:
-        test(args, args.local_rank, args.distributed, trainset)
+        # testset= MyDataset('/data4/ydb/dataset/recognition/imgs2_east_regions', transform=transform)
+        # testset = MyDataset('./data/icpr/crop/',
+        #                  './data/icpr/char2num.txt', transform)
+        testset = MyDataset('/data2/data/90kDICT32px/','/data2/data/90kDICT32px/Synth_val_test.txt', transform)
+        test(args, args.local_rank, args.distributed, testset)
 
 
 if __name__ == '__main__':
