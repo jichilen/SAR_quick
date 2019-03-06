@@ -117,14 +117,9 @@ def train(args, local_rank, distributed, trainset):
             if batch_idx > 0 and batch_idx % save_batch == 0:
                 state = {'net': model.state_dict(
                 ), 'optimizer': optimizer.state_dict(), 'epoc': batch_idx}
-<<<<<<< HEAD
                 torch.save(state, args.checkpoint_dir +
                            str(epoc) + '-' + str(batch_idx) + '.th')
                 with open(args.checkpoint_dir+'last_checkpoint.txt', 'w') as f:
-=======
-                torch.save(state, args.checkpoint_dir + str(batch_idx) + '.th')
-                with open('last_checkpoint.txt', 'w') as f:
->>>>>>> a494c67e34a1db4782514fea43f1cbc4b3095d96
                     f.write(str(epoc) + '-' + str(batch_idx) + '.th')
                 if int(batch_idx / save_batch) > 3:
                     if os.path.exists(args.checkpoint_dir + str(batch_idx - save_batch * 3) + '.th'):
@@ -253,7 +248,7 @@ def main():
     args.lr = 0.02
     args.checkpoint_dir = './model/'  # adam_lowlr/
     args.optim = ''
-    os.environ["CUDA_VISIBLE_DEVICES"] = str(0)
+    os.environ["CUDA_VISIBLE_DEVICES"] = str(1)
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     args.device = 'cuda'
     if not os.path.exists(args.checkpoint_dir):
@@ -295,16 +290,14 @@ def main():
         # trainset = MyDataset('./data/icpr/crop/',
         #                  './data/icpr/char2num.txt', transform)
         # ./2423/6/96_Flowerpots_29746.jpg flowerpots
-        trainset = MyDataset('/data2/data/90kDICT32px/',
-                             '/data2/data/90kDICT32px/Synth_train_spilt.txt', transform)
+        trainset = MyDataset('90kDICT32px_train', transform)
         sys.stdout = Logger(args.checkpoint_dir + '/log.txt')
         train(args, args.local_rank, args.distributed, trainset)
     else:
         # testset= MyDataset('/data4/ydb/dataset/recognition/imgs2_east_regions', transform=transform)
         # testset = MyDataset('./data/icpr/crop/',
         #                  './data/icpr/char2num.txt', transform)
-        testset = MyDataset('/data2/data/90kDICT32px/',
-                            '/data2/data/90kDICT32px/Synth_val_test.txt', transform)
+        testset = MyDataset('90kDICT32px_val', transform)
         test(args, args.local_rank, args.distributed, testset)
 
 
