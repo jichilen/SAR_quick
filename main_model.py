@@ -117,12 +117,13 @@ def train(args, local_rank, distributed, trainset):
             if batch_idx > 0 and batch_idx % save_batch == 0:
                 state = {'net': model.state_dict(
                 ), 'optimizer': optimizer.state_dict(), 'epoc': batch_idx}
-                torch.save(state, args.checkpoint_dir + str(batch_idx) + '.th')
-                with open('last_checkpoint.txt', 'w') as f:
+                torch.save(state, args.checkpoint_dir +
+                           str(epoc) + '-' + str(batch_idx) + '.th')
+                with open(args.checkpoint_dir+'last_checkpoint.txt', 'w') as f:
                     f.write(str(epoc) + '-' + str(batch_idx) + '.th')
                 if int(batch_idx / save_batch) > 3:
                     if os.path.exists(args.checkpoint_dir + str(batch_idx - save_batch * 3) + '.th'):
-                        os.remove(args.checkpoint_dir +
+                        os.remove(args.checkpoint_dir + str(epoc) + '-' +
                                   str(batch_idx - save_batch * 3) + '.th')
         # if epoc % save_epoc == 0:
         #     state = {'net': model.state_dict(
