@@ -29,10 +29,14 @@ class MyDataset(Dataset):
 
     def __getitem__(self, index):
         fn, label = self.imgs[index]
+        try:
+            img = Image.open(fn).convert('RGB')
+        except IOError:
+            print('Corrupted image for %s' % fn)
+            return self[index+1]
         lat = torch.zeros(30)
         for i in range(len(label)):
             lat[i] = int(label[i])
-        img = Image.open(fn).convert('RGB')
         if self.transform is not None:
             img = self.transform(img)
         return img, lat

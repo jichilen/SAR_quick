@@ -6,7 +6,7 @@ import torch.nn.functional as F
 
 class Recogniton(nn.Module):
 
-    def __init__(self,args):
+    def __init__(self, args):
         super(Recogniton, self).__init__()
         self.batch_size = args.batch_size
         self.num_layers = args.num_layers
@@ -16,6 +16,7 @@ class Recogniton(nn.Module):
         self.START_TOKEN = self.vocab_size + 1
         self.END_TOKEN = self.vocab_size + 1
         self.NULL_TOKEN = 0
+        self.device = args.device
 
         self.maxpool1 = nn.MaxPool2d((6, 1), stride=(6, 1))
         self.encode_lstm = nn.LSTM(
@@ -25,7 +26,8 @@ class Recogniton(nn.Module):
         # input = torch.randn(5, 3, 10) T batch feature_l
         # h_0 (2, 3, 20) numl batch hiden_s
         self.hidden_dim_de = args.hidden_dim_de
-        self.out_seq_len = args.out_seq_len  # only set for eval mode, will change in train mode
+        # only set for eval mode, will change in train mode
+        self.out_seq_len = args.out_seq_len
         self.de_lstm_u = nn.ModuleList()
         for i in range(self.num_layers):
             self.de_lstm_u.append(nn.LSTMCell(
@@ -38,7 +40,7 @@ class Recogniton(nn.Module):
             self.hidden_dim_de + self.featrue_layers, self.vocab_size + 2)
         self.logsoftmax = nn.LogSoftmax(dim=-1)
 
-        self.loss = nn.NLLLoss(reduction='none')  # 
+        self.loss = nn.NLLLoss(reduction='none')  #
         print('init')
 
     def forward(self, conv_f, target=None):  # [-1, 512, 6, 40] | -1 30
@@ -47,8 +49,8 @@ class Recogniton(nn.Module):
         x = x.permute(2, 0, 1)
         # Note that all of this 40 sequence are useful
         # TODO:get the valid ones
-        self.hidden_en = (torch.zeros(self.num_layers, self.batch_size, self.hidden_dim).cuda(),
-                          torch.zeros(self.num_layers, self.batch_size, self.hidden_dim).cuda())
+        self.hidden_en = (torch.zeros(self.num_layers, self.batch_size, self.hidden_dim).to(self.device),
+                          torch.zeros(self.num_layers, self.batch_size, self.hidden_dim).to(self.device))
         # [40, -1, 512]
         x, self.hidden_en = self.encode_lstm(x, self.hidden_en)
         # print(self.hidden_en.shape)
@@ -78,9 +80,9 @@ class Recogniton(nn.Module):
             l_target = l_target.view(-1)
             loss = self.loss(out, l_target)
             # print('loss',losses)
-            mask = 1-torch.eq(l_target, 0)
+            mask = 1 - torch.eq(l_target, 0)
             loss = loss[mask]
-            losses=torch.mean(loss)
+            losses = torch.mean(loss)
             # print('loss',loss)
             # print(l_target)
             # print(losses)
@@ -94,13 +96,13 @@ class Recogniton(nn.Module):
         self.hidden_de = []
         for i in range(self.num_layers):
             self.hidden_de.append((torch.zeros(self.batch_size, self.hidden_dim_de).cuda(
-            ), torch.zeros(self.batch_size, self.hidden_dim_de).cuda()))
+            ), torch.zeros(self.batch_size, self.hidden_dim_de).to(self.device)))
         self.out = torch.zeros(self.batch_size, self.out_seq_len +
-                               2, self.vocab_size + 2).cuda()
+                               2, self.vocab_size + 2).to(self.device)
         self.gt_with_start = torch.zeros(
-            self.batch_size, self.out_seq_len + 1).cuda()
+            self.batch_size, self.out_seq_len + 1).to(self.device)
         self.l_target = torch.zeros(
-            self.batch_size, self.out_seq_len + 2, dtype=torch.long).cuda()
+            self.batch_size, self.out_seq_len + 2, dtype=torch.long).to(self.device)
         self.seq = torch.zeros(self.batch_size, self.out_seq_len + 2)
         self.seq_score = torch.zeros(self.batch_size, self.out_seq_len + 2)
 
@@ -158,7 +160,7 @@ class Recogniton(nn.Module):
 class Attention_nn(nn.Module):
     # TODO:get the valid ones
 
-    def __init__(self,args):
+    def __init__(self, args):
         super(Attention_nn, self).__init__()
         self.batch_size = args.batch_size
         self.featrue_layers = args.featrue_layers
