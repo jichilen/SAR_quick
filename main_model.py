@@ -59,20 +59,23 @@ def train(args, local_rank, distributed, trainset):
             weight_decay = 0  # cfg.SOLVER.WEIGHT_DECAY_BIAS
         params += [{"params": [value], "lr": lr, "weight_decay": weight_decay}]
 
-    # fintune from exist ckpt
-    if os.path.exists(args.checkpoint_dir + '/last_checkpoint.txt')
-        with open(args.checkpoint_dir + '/last_checkpoint.txt') as f:
-            lck = f.readline().strip()
-        print("fintune from " + lck)
-        state = torch.load(args.checkpoint_dir + lck)
-        model.load_state_dict(state['net'])
-
     # data optimizer
     # cfg.SOLVER.MOMENTUM
     if args.optim == 'adam':
         optimizer = torch.optim.Adam(params, lr)
     else:
         optimizer = torch.optim.SGD(params, lr, momentum=0.9)
+    bg_iter = 0
+
+    # fintune from exist ckpt
+    if os.path.exists(args.checkpoint_dir + '/last_checkpoint.txt'):
+        with open(args.checkpoint_dir + '/last_checkpoint.txt') as f:
+            lck = f.readline().strip()
+        print("fintune from " + lck)
+        state = torch.load(args.checkpoint_dir + lck)
+        model.load_state_dict(state['net'])
+        optimizer.load_state_dict(state['optimizer'])
+        bg_iter = state['epoc']
     model.train()
 
     # data loader
@@ -97,7 +100,7 @@ def train(args, local_rank, distributed, trainset):
 
     # begin loop
     for epoc in range(epoc_t):
-        for batch_idx, (imgs, targets) in enumerate(trainloader):
+        for batch_idx, (imgs, targets) in enumerate(trainloader, bg_iter):
             imgs = imgs.cuda()
             targets = targets.cuda()
             losses = model(imgs, targets)
@@ -113,7 +116,7 @@ def train(args, local_rank, distributed, trainset):
                 start_training_time = time.time()
             if batch_idx > 0 and batch_idx % save_batch == 0:
                 state = {'net': model.state_dict(
-                ), 'optimizer': optimizer.state_dict(), 'epoc': epoc}
+                ), 'optimizer': optimizer.state_dict(), 'epoc': batch_idx}
                 torch.save(state, args.checkpoint_dir + str(batch_idx) + '.th')
                 with open('last_checkpoint.txt', 'w') as f:
                     f.write(str(epoc) + '-' + str(batch_idx) + '.th')
@@ -250,6 +253,7 @@ def main():
     if not os.path.exists(args.checkpoint_dir):
         os.makedirs(args.checkpoint_dir)
 
+    # settings for multi-gpu training not implement yet
     num_gpus = int(os.environ["WORLD_SIZE"]
                    ) if "WORLD_SIZE" in os.environ else 1
     args.distributed = num_gpus > 1
@@ -261,6 +265,9 @@ def main():
         )
     else:
         pass
+
+    # trainsform for train and test
+    # TODO: data enhancement maybe in class dataset or in transform
     if args.is_training:
         transform = transforms.Compose([
             transforms.Resize((48, 160)),  # (h, w)
@@ -276,6 +283,7 @@ def main():
                                  (0.2023, 0.1994, 0.2010)),
         ])
 
+    # prepare for data
     # trainset = prepare_data(args.save_dir, args.data_name, args.is_training)
     if args.is_training:
         # trainset = MyDataset('./data/icpr/crop/',
