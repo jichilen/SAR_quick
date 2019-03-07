@@ -119,20 +119,21 @@ def train(args, local_rank, distributed, trainset):
                 ), 'optimizer': optimizer.state_dict(), 'epoc': batch_idx}
                 torch.save(state, args.checkpoint_dir +
                            str(epoc) + '-' + str(batch_idx) + '.th')
-                with open(args.checkpoint_dir+'last_checkpoint.txt', 'w') as f:
+                with open(args.checkpoint_dir + 'last_checkpoint.txt', 'w') as f:
                     f.write(str(epoc) + '-' + str(batch_idx) + '.th')
                 if int(batch_idx / save_batch) > 3:
                     if os.path.exists(args.checkpoint_dir + str(batch_idx - save_batch * 3) + '.th'):
                         os.remove(args.checkpoint_dir + str(epoc) + '-' +
                                   str(batch_idx - save_batch * 3) + '.th')
-        # if epoc % save_epoc == 0:
-        #     state = {'net': model.state_dict(
-        #     ), 'optimizer': optimizer.state_dict(), 'epoc': epoc}
-        #     torch.save(state, args.checkpoint_dir + str(epoc) + '.th')
-        #     if int(epoc / save_epoc) > 3:
-        #         if os.path.exists(args.checkpoint_dir + str(epoc - save_epoc * 3) + '.th'):
-        #             os.remove(args.checkpoint_dir +
-        #                       str(epoc - save_epoc * 3) + '.th')
+        if epoc % save_epoc == 0:
+            state = {'net': model.state_dict(
+            ), 'optimizer': optimizer.state_dict(), 'epoc': epoc}
+            torch.save(state, args.checkpoint_dir + str(epoc) + '-' +
+                       str(batch_idx - save_batch * 3) + '.th')
+            if int(epoc / save_epoc) > 3:
+                if os.path.exists(args.checkpoint_dir + str(epoc - save_epoc * 3) + '.th'):
+                    os.remove(args.checkpoint_dir + str(epoc - save_epoc * 3) +
+                              '-' + str(batch_idx - save_batch * 3) + '.th')
 
 
 def test(args, local_rank, distributed, testset):
@@ -157,13 +158,13 @@ def test(args, local_rank, distributed, testset):
 
     # data loader
     testloader = data.DataLoader(
-        testset, batch_size=1, shuffle=False, num_workers=2)
+        testset, batch_size=1, shuffle=False, num_workers=0)
     fp = open('result.txt', 'w')
     t_ed = 0
     t_ac = 0
 
     # begin loop
-    for batch_idx, (imgs, targets) in enumerate(tqdm.tqdm(testloader)):  # tqdm.tqdm(testloader)
+    for batch_idx, (imgs, targets) in enumerate(tqdm.tqdm(testloader,ascii=True)):  # tqdm.tqdm(testloader)
         imgs = imgs.cuda()
         targets = targets.cuda()
         seq, scores = model(imgs, targets)
@@ -248,7 +249,7 @@ def main():
     args.lr = 0.02
     args.checkpoint_dir = './model/'  # adam_lowlr/
     args.optim = ''
-    os.environ["CUDA_VISIBLE_DEVICES"] = str(1)
+    os.environ["CUDA_VISIBLE_DEVICES"] = str(0)
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     args.device = 'cuda'
     if not os.path.exists(args.checkpoint_dir):
@@ -290,14 +291,14 @@ def main():
         # trainset = MyDataset('./data/icpr/crop/',
         #                  './data/icpr/char2num.txt', transform)
         # ./2423/6/96_Flowerpots_29746.jpg flowerpots
-        trainset = MyDataset('90kDICT32px_train', transform)
+        trainset = MyDataset('IIIT5K_train', transform)
         sys.stdout = Logger(args.checkpoint_dir + '/log.txt')
         train(args, args.local_rank, args.distributed, trainset)
     else:
         # testset= MyDataset('/data4/ydb/dataset/recognition/imgs2_east_regions', transform=transform)
         # testset = MyDataset('./data/icpr/crop/',
         #                  './data/icpr/char2num.txt', transform)
-        testset = MyDataset('90kDICT32px_val', transform)
+        testset = MyDataset('IIIT5K_test', transform)
         test(args, args.local_rank, args.distributed, testset)
 
 

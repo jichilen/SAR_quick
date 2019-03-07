@@ -5,6 +5,14 @@ import torch
 import os
 import scipy.io as sio
 
+def tol(l): 
+    l=l.lower() 
+    if ord(l)<ord('a'): 
+        return ord(l)-ord('0')+1 
+    else: 
+        return ord(l)-ord('a')+11
+
+
 class MyDataset(Dataset):
 
     def __init__(self, dataname, transform=None, target_transform=None):
@@ -13,19 +21,20 @@ class MyDataset(Dataset):
         if txt_path:
             if 'mat' in txt_path:
                 data = sio.loadmat(txt_path)
-                da=data['trainCharBound'][0]
+                da=data[txt_path.split('/')[-1][:-4]][0]
                 imgs=[]
-                for gt in tqdm.tqdm(da):
+                for gt in tqdm.tqdm(da, ascii=True):
                     imn = im_dir + gt[0][0]
                     la=gt[1][0].strip()
                     if len(la) > 30:
                         continue
+                    la=[tol(l) for l in la]
                     imgs.append([imn, la])
             else:
                 with open(txt_path) as f:
                     gts = f.readlines()
                 imgs = []
-                for gt in tqdm.tqdm(gts):
+                for gt in tqdm.tqdm(gts, ascii=True):
                     imn = im_dir + gt.strip().split(' ')[0]
                     la = gt.strip().split(' ')[1:]
                     if len(la) > 30:
@@ -61,8 +70,8 @@ class MyDataset(Dataset):
         dataset = {
             '90kDICT32px_train': ['/data2/data/90kDICT32px/','/data2/data/90kDICT32px/Synth_train_spilt.txt'],
             '90kDICT32px_val': ['/data2/data/90kDICT32px/','/data2/data/90kDICT32px/Synth_val_test.txt'],
-            'IIIT5K_train': ['/data2/text/character_detection/IIIT5K/train/','/data2/text/character_detection/IIIT5K/trainCharBound.mat'],
-            'IIIT5K_test': ['/data2/text/character_detection/IIIT5K/test/','/data2/text/character_detection/IIIT5K/testCharBound.mat'],
+            'IIIT5K_train': ['/data2/text/character_detection/IIIT5K/','/data2/text/character_detection/IIIT5K/trainCharBound.mat'],
+            'IIIT5K_test': ['/data2/text/character_detection/IIIT5K/','/data2/text/character_detection/IIIT5K/testCharBound.mat'],
         }
         return dataset[dataname]
 
