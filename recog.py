@@ -8,7 +8,6 @@ class Recogniton(nn.Module):
 
     def __init__(self, args):
         super(Recogniton, self).__init__()
-        self.batch_size = args.batch_size
         self.num_layers = args.num_layers
         self.featrue_layers = args.featrue_layers
         self.hidden_dim = args.hidden_dim
@@ -44,6 +43,7 @@ class Recogniton(nn.Module):
         print('init')
 
     def forward(self, conv_f, target=None):  # [-1, 512, 6, 40] | -1 30
+        self.batch_size = conv_f.shape[0]
         x = self.maxpool1(conv_f)  # [-1, 512, 1, 40]
         x = torch.squeeze(x, 2)  # [-1, 512, 40]
         x = x.permute(2, 0, 1)
@@ -162,12 +162,9 @@ class Attention_nn(nn.Module):
 
     def __init__(self, args):
         super(Attention_nn, self).__init__()
-        self.batch_size = args.batch_size
         self.featrue_layers = args.featrue_layers
         self.hidden_dim_de = args.hidden_dim_de
         self.embedding_size = args.embedding_size
-        self.max_h = args.max_h
-        self.max_w = args.max_w
         self.conv_h = nn.Linear(self.hidden_dim_de, self.embedding_size)
         self.conv_f = nn.Conv2d(self.featrue_layers,
                                 self.embedding_size, kernel_size=3, padding=1)
@@ -175,20 +172,21 @@ class Attention_nn(nn.Module):
         self.dropout = nn.Dropout(p=0.5)
         self.softmax = nn.Softmax(dim=-1)
 
-    def forward(self, conv_f, h):
+    def forward(self, conv_f, h):  # [-1, 512, 6, 40]  | -1 512
         g_em = self.conv_h(h)
-        g_em = g_em.view(self.batch_size, -1, 1)
-        g_em = g_em.repeat(1, 1, self.max_h * self.max_w)  # -1 512 h*w
+        g_em = g_em.view(g_em.shape[0], -1, 1)
+        g_em = g_em.repeat(1, 1, conv_f.shape[
+                           2] * conv_f.shape[3])  # -1 512 h*w
         g_em = g_em.permute(0, 2, 1)
         x_em = self.conv_f(conv_f)
-        x_em = x_em.view(self.batch_size, -1, self.max_h * self.max_w)
+        x_em = x_em.view(x_em.shape[0], -1, g_em.shape[1])
         x_em = x_em.permute(0, 2, 1)
         feat = self.dropout(torch.tanh(x_em + g_em))  # -1 h*w 512
         e = self.conv_att(feat.view(-1, self.embedding_size))  # -1*h*w 1
-        alpha = self.softmax(e.view(-1, self.max_h * self.max_w))  # -1  h*w
-        alpha2 = alpha.view(-1, 1, self.max_h * self.max_w)  # -1 1 h*w
+        alpha = self.softmax(e.view(-1,  g_em.shape[1]))  # -1  h*w
+        alpha2 = alpha.view(-1, 1,  g_em.shape[1])  # -1 1 h*w
         orgfeat_embed = conv_f.view(-1, self.featrue_layers,
-                                    self.max_h * self.max_w)
+                                    g_em.shape[1])
         orgfeat_embed = orgfeat_embed.permute(0, 2, 1)  # -1 h*w 512
         att_out = torch.matmul(alpha2, orgfeat_embed)
         att_out = att_out.view(-1, self.featrue_layers)  # -1 512

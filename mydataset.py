@@ -5,46 +5,24 @@ import torch
 import os
 import scipy.io as sio
 
-def tol(l): 
-    l=l.lower() 
-    if ord(l)<ord('a'): 
-        return ord(l)-ord('0')+1 
-    else: 
-        return ord(l)-ord('a')+11
+
+def tol(l):
+    l = l.lower()
+    if ord(l) < ord('a'):
+        return ord(l) - ord('0') + 1
+    else:
+        return ord(l) - ord('a') + 11
 
 
 class MyDataset(Dataset):
 
-    def __init__(self, dataname, transform=None, target_transform=None):
-
-        im_dir, txt_path = self.get_dataset(dataname)
-        if txt_path:
-            if 'mat' in txt_path:
-                data = sio.loadmat(txt_path)
-                da=data[txt_path.split('/')[-1][:-4]][0]
-                imgs=[]
-                for gt in tqdm.tqdm(da, ascii=True):
-                    imn = im_dir + gt[0][0]
-                    la=gt[1][0].strip()
-                    if len(la) > 30:
-                        continue
-                    la=[tol(l) for l in la]
-                    imgs.append([imn, la])
-            else:
-                with open(txt_path) as f:
-                    gts = f.readlines()
-                imgs = []
-                for gt in tqdm.tqdm(gts, ascii=True):
-                    imn = im_dir + gt.strip().split(' ')[0]
-                    la = gt.strip().split(' ')[1:]
-                    if len(la) > 30:
-                        continue
-                    imgs.append([imn, la])
-        else:
-            imgs = []
-            ims = os.listdir(im_dir)
-            for im in ims:
-                imgs.append([os.path.join(im_dir, im), [0]])
+    def __init__(self, datanames, transform=None, target_transform=None):
+        if not isinstance(datanames,list):
+            datanames=[datanames]
+        imgs=[]
+        for dataname in datanames:
+            im_dir, txt_path = self.get_dataset(dataname)
+            imgs.extend(self.get_data(im_dir, txt_path))
         self.imgs = imgs
         self.transform = transform
         self.target_transform = target_transform
@@ -66,14 +44,46 @@ class MyDataset(Dataset):
     def __len__(self):
         return len(self.imgs)
 
-    def get_dataset(self,dataname):
+    def get_dataset(self, dataname):
         dataset = {
-            '90kDICT32px_train': ['/data2/data/90kDICT32px/','/data2/data/90kDICT32px/Synth_train_spilt.txt'],
-            '90kDICT32px_val': ['/data2/data/90kDICT32px/','/data2/data/90kDICT32px/Synth_val_test.txt'],
-            'IIIT5K_train': ['/data2/text/character_detection/IIIT5K/','/data2/text/character_detection/IIIT5K/trainCharBound.mat'],
-            'IIIT5K_test': ['/data2/text/character_detection/IIIT5K/','/data2/text/character_detection/IIIT5K/testCharBound.mat'],
+            '90kDICT32px_train': ['/data2/data/90kDICT32px/', '/data2/data/90kDICT32px/Synth_train_sample.txt'],
+            '90kDICT32px_val': ['/data2/data/90kDICT32px/', '/data2/data/90kDICT32px/Synth_val_test.txt'],
+            'IIIT5K_train': ['/data2/text/recognition/IIIT5K/', '/data2/text/recognition/IIIT5K/trainCharBound.mat'],
+            'IIIT5K_test': ['/data2/text/recognition/IIIT5K/', '/data2/text/recognition/IIIT5K/testCharBound.mat'],
+            'SynthChinese_train': ['/data2/text/recognition/SynthChinese/images/', '/data2/text/recognition/SynthChinese/train.txt'],
+            'SynthChinese_test': ['/data2/text/recognition/SynthChinese/images/', '/data2/text/recognition/SynthChinese/test.txt'],
         }
         return dataset[dataname]
+
+    def get_data(self, im_dir, txt_path=None):
+        if txt_path:
+            if 'mat' in txt_path:
+                data = sio.loadmat(txt_path)
+                da = data[txt_path.split('/')[-1][:-4]][0]
+                imgs = []
+                for gt in tqdm.tqdm(da, ascii=True):
+                    imn = im_dir + gt[0][0]
+                    la = gt[1][0].strip()
+                    if len(la) > 30:
+                        continue
+                    la = [tol(l) for l in la]
+                    imgs.append([imn, la])
+            else:
+                with open(txt_path) as f:
+                    gts = f.readlines()
+                imgs = []
+                for gt in tqdm.tqdm(gts, ascii=True):
+                    imn = im_dir + gt.strip().split(' ')[0]
+                    la = gt.strip().split(' ')[1:]
+                    if len(la) > 30:
+                        continue
+                    imgs.append([imn, la])
+        else:
+            imgs = []
+            ims = os.listdir(im_dir)
+            for im in ims:
+                imgs.append([os.path.join(im_dir, im), [0]])
+        return imgs
 
 
 class My90kDataset(Dataset):

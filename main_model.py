@@ -75,13 +75,14 @@ def train(args, local_rank, distributed, trainset):
         state = torch.load(args.checkpoint_dir + lck)
         model.load_state_dict(state['net'])
         optimizer.load_state_dict(state['optimizer'])
-        bg_iter = state['epoc']
+        bg_iter = state['batch_idx']
+        bg_epoc = state['epoc']
     model.train()
 
     # data loader
     sampler = torch.utils.data.sampler.RandomSampler(trainset)
     batch_sampler = torch.utils.data.sampler.BatchSampler(
-        sampler, args.batch_size, drop_last=True
+        sampler, args.batch_size, drop_last=False
     )
     trainloader = data.DataLoader(
         trainset, batch_sampler=batch_sampler, num_workers=2)
@@ -100,7 +101,10 @@ def train(args, local_rank, distributed, trainset):
 
     # begin loop
     for epoc in range(epoc_t):
-        for batch_idx, (imgs, targets) in enumerate(trainloader, bg_iter):
+        for batch_idx, (imgs, targets) in enumerate(trainloader):
+            if batch_idx<bg_iter:
+                continue
+            bg_iter=-1
             imgs = imgs.cuda()
             targets = targets.cuda()
             losses = model(imgs, targets)
@@ -115,19 +119,21 @@ def train(args, local_rank, distributed, trainset):
                 total_loss = 0
                 start_training_time = time.time()
             if batch_idx > 0 and batch_idx % save_batch == 0:
-                state = {'net': model.state_dict(
-                ), 'optimizer': optimizer.state_dict(), 'epoc': batch_idx}
+                state = {'net': model.state_dict(), 'optimizer': optimizer.state_dict(
+                ), 'epoc': epoc, 'batch_idx': batch_idx}
                 torch.save(state, args.checkpoint_dir +
                            str(epoc) + '-' + str(batch_idx) + '.th')
                 with open(args.checkpoint_dir + 'last_checkpoint.txt', 'w') as f:
+                    print('writing ' + str(epoc) + '-' +
+                          str(batch_idx) + '.th to' + args.checkpoint_dir)
                     f.write(str(epoc) + '-' + str(batch_idx) + '.th')
                 if int(batch_idx / save_batch) > 3:
                     if os.path.exists(args.checkpoint_dir + str(batch_idx - save_batch * 3) + '.th'):
                         os.remove(args.checkpoint_dir + str(epoc) + '-' +
                                   str(batch_idx - save_batch * 3) + '.th')
         if epoc % save_epoc == 0:
-            state = {'net': model.state_dict(
-            ), 'optimizer': optimizer.state_dict(), 'epoc': epoc}
+            state = {'net': model.state_dict(), 'optimizer': optimizer.state_dict(
+            ), 'epoc': epoc, 'batch_idx': batch_idx}
             torch.save(state, args.checkpoint_dir + str(epoc) + '-' +
                        str(batch_idx - save_batch * 3) + '.th')
             if int(epoc / save_epoc) > 3:
@@ -164,7 +170,8 @@ def test(args, local_rank, distributed, testset):
     t_ac = 0
 
     # begin loop
-    for batch_idx, (imgs, targets) in enumerate(tqdm.tqdm(testloader,ascii=True)):  # tqdm.tqdm(testloader)
+    # tqdm.tqdm(testloader)
+    for batch_idx, (imgs, targets) in enumerate(tqdm.tqdm(testloader, ascii=True)):
         imgs = imgs.cuda()
         targets = targets.cuda()
         seq, scores = model(imgs, targets)
@@ -238,11 +245,9 @@ def main():
     args.num_layers = 2
     args.featrue_layers = 512
     args.hidden_dim = 512
-    args.vocab_size = 36
+    args.vocab_size = 5990
     args.out_seq_len = 30
     args.hidden_dim_de = 512
-    args.max_h = 6
-    args.max_w = 40
     args.embedding_size = 512
     args.batch_size = 40
     ######
@@ -272,14 +277,14 @@ def main():
     # TODO: data enhancement maybe in class dataset or in transform
     if args.is_training:
         transform = transforms.Compose([
-            transforms.Resize((48, 160)),  # (h, w)
+            transforms.Resize((48, 320)),  # (h, w)
             transforms.ToTensor(),
             transforms.Normalize((0.4914, 0.4822, 0.4465),
                                  (0.2023, 0.1994, 0.2010)),
         ])
     else:
         transform = transforms.Compose([
-            transforms.Resize((48, 160)),
+            transforms.Resize((48, 320)),
             transforms.ToTensor(),
             transforms.Normalize((0.4914, 0.4822, 0.4465),
                                  (0.2023, 0.1994, 0.2010)),
@@ -291,14 +296,14 @@ def main():
         # trainset = MyDataset('./data/icpr/crop/',
         #                  './data/icpr/char2num.txt', transform)
         # ./2423/6/96_Flowerpots_29746.jpg flowerpots
-        trainset = MyDataset('IIIT5K_train', transform)
+        trainset = MyDataset(['SynthChinese_train', ], transform)
         sys.stdout = Logger(args.checkpoint_dir + '/log.txt')
         train(args, args.local_rank, args.distributed, trainset)
     else:
         # testset= MyDataset('/data4/ydb/dataset/recognition/imgs2_east_regions', transform=transform)
         # testset = MyDataset('./data/icpr/crop/',
         #                  './data/icpr/char2num.txt', transform)
-        testset = MyDataset('IIIT5K_test', transform)
+        testset = MyDataset('SynthChinese_test', transform)
         test(args, args.local_rank, args.distributed, testset)
 
 
