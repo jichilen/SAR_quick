@@ -23,6 +23,25 @@ from utils import Logger
 from mydataset import MyDataset, My90kDataset
 
 
+def model_class_merge(model, state, new_size):
+    new_size+=2
+    # recg.embed.weight recg.linear_out.bias recg.linear_out.weight
+    net_p = state['net']
+    old_size = net_p['recg.embed.weight'].shape[0]
+    if old_size == new_size:
+        model.load_state_dict(net_p)
+        optimizer.load_state_dict(state['optimizer'])
+        return
+    for k, v in net_p.items():
+        if 'recg.embed.weight' in k or 'recg.linear_out.bias' in k or 'recg.linear_out.weight' in k:
+            shape_n = [s1 for s1 in net_p[k].shape]
+            shape_n[0] = new_size
+            var = net_p[k].new_zeros(shape_n)
+            var[:old_size, ...] = net_p[k]
+            net_p[k] = var
+    model.load_state_dict(net_p)
+
+
 class Model(nn.Module):
 
     def __init__(self, args):
@@ -73,8 +92,9 @@ def train(args, local_rank, distributed, trainset):
             lck = f.readline().strip()
         print("fintune from " + lck)
         state = torch.load(args.checkpoint_dir + lck)
-        model.load_state_dict(state['net'])
-        optimizer.load_state_dict(state['optimizer'])
+        model_class_merge(model, state, args.vocab_size)
+        # model.load_state_dict(state['net'], strict=False)
+        # optimizer.load_state_dict(state['optimizer'])
         bg_iter = state['batch_idx']
         bg_epoc = state['epoc']
     model.train()
@@ -101,10 +121,10 @@ def train(args, local_rank, distributed, trainset):
 
     # begin loop
     for epoc in range(epoc_t):
-        for batch_idx, (imgs, targets) in enumerate(trainloader):
-            if batch_idx<bg_iter:
-                continue
-            bg_iter=-1
+        for batch_idx, (imgs, targets) in enumerate(trainloader, bg_iter):
+            if batch_idx == len(trainloader) - 1:
+                bg_iter = 0
+                break
             imgs = imgs.cuda()
             targets = targets.cuda()
             losses = model(imgs, targets)
@@ -150,7 +170,9 @@ def test(args, local_rank, distributed, testset):
     # get char_dict
     # with open('/data4/ydb/dataset/recognition/char_char_6489.txt')as f:
     #     chardict=f.readlines()
-    chardict = get_char_dict()
+    # chardict = get_char_dict()
+    with open('./char_char_6489.txt')as f:
+        chardict = f.readlines()
     model = Model(args)
     model.to(args.device)
 
@@ -176,21 +198,19 @@ def test(args, local_rank, distributed, testset):
         targets = targets.cuda()
         seq, scores = model(imgs, targets)
         seq = seq.numpy()
-        # print(seq)
         seq = seq[0, 1:]
         targets = targets.cpu().numpy()
         targets = targets[0]
         re = ''
         ret = ''
-        # print(seq)
         for se in seq:
             if se > args.vocab_size:
                 break
-            re += chardict[int(se) - 1].strip()
+            re += chardict[int(se)].strip()
         for ta in targets:
             if int(ta) == 0:
                 break
-            ret += chardict[int(ta) - 1].strip()
+            ret += chardict[int(ta)].strip()
         fp.write(testset.imgs[batch_idx][0].split(
             '/')[-1] + ' ' + re + ' ' + ret + '\n')
         ed = editdistance.eval(re, ret)
@@ -245,13 +265,13 @@ def main():
     args.num_layers = 2
     args.featrue_layers = 512
     args.hidden_dim = 512
-    args.vocab_size = 5990
+    args.vocab_size = 6499
     args.out_seq_len = 30
     args.hidden_dim_de = 512
     args.embedding_size = 512
-    args.batch_size = 40
+    args.batch_size = 20
     ######
-    args.lr = 0.02
+    args.lr = 0.01
     args.checkpoint_dir = './model/'  # adam_lowlr/
     args.optim = ''
     os.environ["CUDA_VISIBLE_DEVICES"] = str(0)

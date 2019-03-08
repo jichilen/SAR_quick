@@ -51,7 +51,9 @@ class MyDataset(Dataset):
             'IIIT5K_train': ['/data2/text/recognition/IIIT5K/', '/data2/text/recognition/IIIT5K/trainCharBound.mat'],
             'IIIT5K_test': ['/data2/text/recognition/IIIT5K/', '/data2/text/recognition/IIIT5K/testCharBound.mat'],
             'SynthChinese_train': ['/data2/text/recognition/SynthChinese/images/', '/data2/text/recognition/SynthChinese/train.txt'],
-            'SynthChinese_test': ['/data2/text/recognition/SynthChinese/images/', '/data2/text/recognition/SynthChinese/test.txt'],
+            'SynthChinese_test': ['/data2/text/recognition/SynthChinese/images/', '/data2/text/recognition/SynthChinese/test_test.txt'],
+            'icpr': ['/data2/text/recognition/recognition/icpr/crop/', '/data2/text/recognition/recognition/icpr/char2num.txt'],
+            'expr0': ['/data2/text/recognition/recognition/expr0/crop/', '/data2/text/recognition/recognition/expr0/char2num.txt'],
         }
         return dataset[dataname]
 

@@ -25,6 +25,7 @@ class Logger(object):
  
     def write(self, message):
         self.terminal.write(message)
+        message+='\n'
         self.log.write(message)
  
     def flush(self):
