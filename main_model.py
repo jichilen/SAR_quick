@@ -23,8 +23,8 @@ from utils import Logger
 from mydataset import MyDataset, My90kDataset
 
 
-def model_class_merge(model, state, new_size):
-    new_size+=2
+def model_class_merge(model, optimizer, state, new_size):
+    new_size += 2
     # recg.embed.weight recg.linear_out.bias recg.linear_out.weight
     net_p = state['net']
     old_size = net_p['recg.embed.weight'].shape[0]
@@ -92,7 +92,7 @@ def train(args, local_rank, distributed, trainset):
             lck = f.readline().strip()
         print("fintune from " + lck)
         state = torch.load(args.checkpoint_dir + lck)
-        model_class_merge(model, state, args.vocab_size)
+        model_class_merge(model, optimizer, state, args.vocab_size)
         # model.load_state_dict(state['net'], strict=False)
         # optimizer.load_state_dict(state['optimizer'])
         bg_iter = state['batch_idx']
@@ -122,7 +122,7 @@ def train(args, local_rank, distributed, trainset):
     # begin loop
     for epoc in range(epoc_t):
         for batch_idx, (imgs, targets) in enumerate(trainloader, bg_iter):
-            if batch_idx == len(trainloader) - 1:
+            if batch_idx >= len(trainloader) - 1:
                 bg_iter = 0
                 break
             imgs = imgs.cuda()
@@ -148,7 +148,7 @@ def train(args, local_rank, distributed, trainset):
                           str(batch_idx) + '.th to' + args.checkpoint_dir)
                     f.write(str(epoc) + '-' + str(batch_idx) + '.th')
                 if int(batch_idx / save_batch) > 3:
-                    if os.path.exists(args.checkpoint_dir + str(batch_idx - save_batch * 3) + '.th'):
+                    if os.path.exists(args.checkpoint_dir + str(epoc) + '-' + str(batch_idx - save_batch * 3) + '.th'):
                         os.remove(args.checkpoint_dir + str(epoc) + '-' +
                                   str(batch_idx - save_batch * 3) + '.th')
         if epoc % save_epoc == 0:
@@ -304,7 +304,7 @@ def main():
         ])
     else:
         transform = transforms.Compose([
-            transforms.Resize((48, 320)),
+            transforms.Resize((48, 320)),  # 32 280
             transforms.ToTensor(),
             transforms.Normalize((0.4914, 0.4822, 0.4465),
                                  (0.2023, 0.1994, 0.2010)),
@@ -316,14 +316,15 @@ def main():
         # trainset = MyDataset('./data/icpr/crop/',
         #                  './data/icpr/char2num.txt', transform)
         # ./2423/6/96_Flowerpots_29746.jpg flowerpots
-        trainset = MyDataset(['SynthChinese_train', ], transform)
+        trainset = MyDataset(
+            ['icpr', 'expr0', 'SynthChinese_train'], transform)
         sys.stdout = Logger(args.checkpoint_dir + '/log.txt')
         train(args, args.local_rank, args.distributed, trainset)
     else:
         # testset= MyDataset('/data4/ydb/dataset/recognition/imgs2_east_regions', transform=transform)
         # testset = MyDataset('./data/icpr/crop/',
         #                  './data/icpr/char2num.txt', transform)
-        testset = MyDataset('SynthChinese_test', transform)
+        testset = MyDataset('test', transform)
         test(args, args.local_rank, args.distributed, testset)
 
 

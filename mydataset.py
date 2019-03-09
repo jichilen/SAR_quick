@@ -4,7 +4,7 @@ import tqdm
 import torch
 import os
 import scipy.io as sio
-
+import random
 
 def tol(l):
     l = l.lower()
@@ -34,6 +34,11 @@ class MyDataset(Dataset):
         except IOError:
             print('Corrupted image for %s' % fn)
             return self[index + 1]
+        if img.height>img.width:
+            if random.random()>0.5:
+                img=img.transpose(Image.ROTATE_90)
+            else:
+                img=img.transpose(Image.ROTATE_270)
         lat = torch.zeros(30)
         for i in range(len(label)):
             lat[i] = int(label[i])
@@ -50,10 +55,11 @@ class MyDataset(Dataset):
             '90kDICT32px_val': ['/data2/data/90kDICT32px/', '/data2/data/90kDICT32px/Synth_val_test.txt'],
             'IIIT5K_train': ['/data2/text/recognition/IIIT5K/', '/data2/text/recognition/IIIT5K/trainCharBound.mat'],
             'IIIT5K_test': ['/data2/text/recognition/IIIT5K/', '/data2/text/recognition/IIIT5K/testCharBound.mat'],
-            'SynthChinese_train': ['/data2/text/recognition/SynthChinese/images/', '/data2/text/recognition/SynthChinese/train.txt'],
+            'SynthChinese_train': ['/data2/text/recognition/SynthChinese/images/', '/data2/text/recognition/SynthChinese/train_sample.txt'],
             'SynthChinese_test': ['/data2/text/recognition/SynthChinese/images/', '/data2/text/recognition/SynthChinese/test_test.txt'],
             'icpr': ['/data2/text/recognition/recognition/icpr/crop/', '/data2/text/recognition/recognition/icpr/char2num.txt'],
             'expr0': ['/data2/text/recognition/recognition/expr0/crop/', '/data2/text/recognition/recognition/expr0/char2num.txt'],
+            'test': ['/data2/text/recognition/recognition/imgs2_east_regions/', '/data2/text/recognition/recognition/test.txt'],
         }
         return dataset[dataname]
 
