@@ -324,7 +324,7 @@ def main():
         #                  './data/icpr/char2num.txt', transform)
         # ./2423/6/96_Flowerpots_29746.jpg flowerpots
         trainset = MyDataset(
-            ['SynthChinese_train',], transform)
+            ['icpr_train',], transform)
         sys.stdout = Logger(args.checkpoint_dir + '/log.txt')
         train(args, args.local_rank, args.distributed, trainset)
     else:

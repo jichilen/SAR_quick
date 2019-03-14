@@ -60,6 +60,8 @@ class MyDataset(Dataset):
             'icpr': ['/data2/text/recognition/recognition/icpr/crop/', '/data2/text/recognition/recognition/icpr/char2num.txt'],
             'expr0': ['/data2/text/recognition/recognition/expr0/crop/', '/data2/text/recognition/recognition/expr0/char2num.txt'],
             'test': ['/data2/text/recognition/recognition/imgs2_east_regions/', '/data2/text/recognition/recognition/test.txt'],
+            'icpr_train': ['/data2/text/recognition/recognition/icpr/crop/', '/data2/text/recognition/recognition/icpr/train_randomsample.txt'],
+            'icpr_test': ['/data2/text/recognition/recognition/icpr/crop/', '/data2/text/recognition/recognition/icpr/test_randomsample.txt'],
         }
         return dataset[dataname]
 
