@@ -19,8 +19,8 @@ class Recogniton(nn.Module):
 
         self.maxpool1 = nn.MaxPool2d((6, 1), stride=(6, 1))
         self.encode_lstm = nn.LSTM(
-            self.featrue_layers, self.hidden_dim, self.num_layers)
-
+            self.featrue_layers, self.hidden_dim, 1, bidirectional=True)
+        self.linear_encode = nn.Linear(self.hidden_dim * 2, self.hidden_dim)
         # nn.LSTM(10, 20, 2) featrue_l hiden_s numlayers
         # input = torch.randn(5, 3, 10) T batch feature_l
         # h_0 (2, 3, 20) numl batch hiden_s
@@ -53,6 +53,7 @@ class Recogniton(nn.Module):
                           torch.zeros(self.num_layers, self.batch_size, self.hidden_dim).to(self.device))
         # [40, -1, 512]
         x, self.hidden_en = self.encode_lstm(x, self.hidden_en)
+        x = self.linear_encode(x)
         # print(self.hidden_en.shape)
         holistic_feature = x[-1]  # [-1 512]
         # decode model

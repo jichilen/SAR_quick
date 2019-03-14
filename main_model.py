@@ -97,6 +97,11 @@ def train(args, local_rank, distributed, trainset):
         # optimizer.load_state_dict(state['optimizer'])
         bg_iter = state['batch_idx']
         bg_epoc = state['epoc']
+    elif args.ckpt:
+        print("fintune from " + args.ckpt)
+        state = torch.load(args.ckpt)
+        model.load_state_dict(state['net'], strict=False)
+        
     model.train()
 
     # data loader
@@ -211,9 +216,9 @@ def test(args, local_rank, distributed, testset):
             if int(ta) == 0:
                 break
             ret += chardict[int(ta)].strip()
-        fp.write(testset.imgs[batch_idx][0].split(
-            '/')[-1] + ' ' + re + ' ' + ret + '\n')
         ed = editdistance.eval(re, ret)
+        fp.write(testset.imgs[batch_idx][0].split(
+            '/')[-1] + ' ' + re + ' ' + ret +' '+ str(ed) +'\n')
         if ed == 0:
             t_ac += 1
         t_ed += ed
@@ -254,6 +259,8 @@ def main():
         help="Do not test the final model",
         action="store_true",
     )
+    parser.add_argument("--ckpt", default=None,
+                        help="path to save dataset", type=str,)
     parser.add_argument(
         "opts",
         help="Modify config options using the command-line",
@@ -317,14 +324,14 @@ def main():
         #                  './data/icpr/char2num.txt', transform)
         # ./2423/6/96_Flowerpots_29746.jpg flowerpots
         trainset = MyDataset(
-            ['icpr', 'expr0', 'SynthChinese_train'], transform)
+            ['SynthChinese_train',], transform)
         sys.stdout = Logger(args.checkpoint_dir + '/log.txt')
         train(args, args.local_rank, args.distributed, trainset)
     else:
         # testset= MyDataset('/data4/ydb/dataset/recognition/imgs2_east_regions', transform=transform)
         # testset = MyDataset('./data/icpr/crop/',
         #                  './data/icpr/char2num.txt', transform)
-        testset = MyDataset('test', transform)
+        testset = MyDataset('SynthChinese_test', transform)
         test(args, args.local_rank, args.distributed, testset)
 
 
