@@ -304,14 +304,14 @@ def main():
     # TODO: data enhancement maybe in class dataset or in transform
     if args.is_training:
         transform = transforms.Compose([
-            transforms.Resize((48, 320)),  # (h, w)
+            transforms.Resize((48, 320)),  # (h, w)   48, 160   6 40
             transforms.ToTensor(),
             transforms.Normalize((0.4914, 0.4822, 0.4465),
                                  (0.2023, 0.1994, 0.2010)),
         ])
     else:
         transform = transforms.Compose([
-            transforms.Resize((48, 320)),  # 32 280
+            transforms.Resize((48, 320)),  # 32 280    
             transforms.ToTensor(),
             transforms.Normalize((0.4914, 0.4822, 0.4465),
                                  (0.2023, 0.1994, 0.2010)),
