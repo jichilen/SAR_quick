@@ -51,8 +51,8 @@ class MyDataset(Dataset):
 
     def get_dataset(self, dataname):
         dataset = {
-            '90kDICT32px_train': ['/data2/data/90kDICT32px/', '/data2/data/90kDICT32px/Synth_train_sample.txt'],
-            '90kDICT32px_val': ['/data2/data/90kDICT32px/', '/data2/data/90kDICT32px/Synth_val_test.txt'],
+            '90kDICT32px_train': ['/data2/data/90kDICT32px/', '/data2/data/90kDICT32px/syn_90k_train.txt'],
+            '90kDICT32px_val': ['/data2/data/90kDICT32px/', '/data2/data/90kDICT32px/syn_90k_val.txt'],
             'IIIT5K_train': ['/data2/text/recognition/IIIT5K/', '/data2/text/recognition/IIIT5K/trainCharBound.mat'],
             'IIIT5K_test': ['/data2/text/recognition/IIIT5K/', '/data2/text/recognition/IIIT5K/testCharBound.mat'],
             'SynthChinese_train': ['/data2/text/recognition/SynthChinese/images/', '/data2/text/recognition/SynthChinese/train.txt'],

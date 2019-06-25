@@ -10,7 +10,7 @@ import torchvision.transforms as transforms
 from torch.utils.data.sampler import BatchSampler
 
 def get_char_dict():
-    chardict=[]
+    chardict=[' ']
     for i in range(1,37):
         if i <11:
             chardict.append(chr(ord('0')+i-1))

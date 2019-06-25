@@ -72,15 +72,19 @@ class Recogniton(nn.Module):
             l_target = self.l_target
             l_target[:, 1:-1] = target
             for xi in range(self.l_target.shape[0]):
+                cal=0
                 for xj in range(1, l_target.shape[1]):
                     if l_target[xi, xj] == 0:
+                        cal+=1
                         l_target[xi, xj] = self.END_TOKEN
-                        break
+                        if cal>=3:# only call loss for 3 end_token
+                            break
             # print(torch.argmax(out,dim=-1))
             out = out.view(-1, self.vocab_size + 2)
             l_target = l_target.view(-1)
             loss = self.loss(out, l_target)
             # print('loss',losses)
+            # maybe need to mask loss for padding ones
             mask = 1 - torch.eq(l_target, 0)
             loss = loss[mask]
             losses = torch.mean(loss)

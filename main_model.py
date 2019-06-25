@@ -67,25 +67,28 @@ def train(args, local_rank, distributed, trainset):
     params = []
 
     # fix the bias lr
-    for key, value in model.named_parameters():
-        # print(key)
-        if not value.requires_grad:
-            continue
-        lr = args.lr  # cfg.SOLVER.BASE_LR
-        weight_decay = 0.0001  # cfg.SOLVER.WEIGHT_DECAY
-        if "bias" in key:
-            lr = args.lr * 2  # cfg.SOLVER.BASE_LR * cfg.SOLVER.BIAS_LR_FACTOR
-            weight_decay = 0  # cfg.SOLVER.WEIGHT_DECAY_BIAS
-        params += [{"params": [value], "lr": lr, "weight_decay": weight_decay}]
+    if args.multi_bias:
+        for key, value in model.named_parameters():
+            # print(key)
+            if not value.requires_grad:
+                continue
+            lr = args.lr  # cfg.SOLVER.BASE_LR
+            weight_decay = 0.0001  # cfg.SOLVER.WEIGHT_DECAY
+            if "bias" in key:
+                lr = args.lr * 2  # cfg.SOLVER.BASE_LR * cfg.SOLVER.BIAS_LR_FACTOR
+                weight_decay = 0  # cfg.SOLVER.WEIGHT_DECAY_BIAS
+            params += [{"params": [value], "lr": lr,
+                        "weight_decay": weight_decay}]
 
     # data optimizer
     # cfg.SOLVER.MOMENTUM
     if args.optim == 'adam':
         optimizer = torch.optim.Adam(params, lr)
+    elif args.optim == 'adadelta':
+        optimizer = torch.optim.Adadelta(params)
     else:
         optimizer = torch.optim.SGD(params, lr, momentum=0.9)
     bg_iter = 0
-
     # fintune from exist ckpt
     if os.path.exists(args.checkpoint_dir + '/last_checkpoint.txt'):
         with open(args.checkpoint_dir + '/last_checkpoint.txt') as f:
@@ -101,7 +104,10 @@ def train(args, local_rank, distributed, trainset):
         print("fintune from " + args.ckpt)
         state = torch.load(args.ckpt)
         model.load_state_dict(state['net'], strict=False)
-        
+    lambda2 = lambda itera: 0.9 ** (itera // 20000) if 0.9 ** (itera // 20000) > 1e-5 / args.lr else 1e-5 / args.lr
+    lr_scedule = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lambda2)
+    # scheduler = StepLR(optimizer, step_size=10000, gamma=0.1)
+
     model.train()
 
     # data loader
@@ -130,6 +136,7 @@ def train(args, local_rank, distributed, trainset):
             if batch_idx >= len(trainloader) - 1:
                 bg_iter = 0
                 break
+            lr_scedule.step()
             imgs = imgs.cuda()
             targets = targets.cuda()
             losses = model(imgs, targets)
@@ -169,15 +176,15 @@ def train(args, local_rank, distributed, trainset):
 
 def test(args, local_rank, distributed, testset):
     # basic settings
-    args.batch_size = 1
+    args.batch_size = 32
     print(args)
 
     # get char_dict
     # with open('/data4/ydb/dataset/recognition/char_char_6489.txt')as f:
     #     chardict=f.readlines()
-    # chardict = get_char_dict()
-    with open('./char_char_6489.txt')as f:
-        chardict = f.readlines()
+    chardict = get_char_dict()
+    # with open('./char_char_6489.txt')as f:
+    #     chardict = f.readlines()
     model = Model(args)
     model.to(args.device)
 
@@ -191,39 +198,47 @@ def test(args, local_rank, distributed, testset):
 
     # data loader
     testloader = data.DataLoader(
-        testset, batch_size=1, shuffle=False, num_workers=0)
-    fp = open('result.txt', 'w')
+        testset, batch_size=args.batch_size, shuffle=False, num_workers=0)
+    fp = open('result1.txt', 'w')
     t_ed = 0
     t_ac = 0
-
+    cal_n = 0
     # begin loop
     # tqdm.tqdm(testloader)
     for batch_idx, (imgs, targets) in enumerate(tqdm.tqdm(testloader, ascii=True)):
+        # if cal_n >= 200:
+        #     break
+
         imgs = imgs.cuda()
         targets = targets.cuda()
         seq, scores = model(imgs, targets)
-        seq = seq.numpy()
-        seq = seq[0, 1:]
+        seqs = seq.numpy()
         targets = targets.cpu().numpy()
-        targets = targets[0]
-        re = ''
-        ret = ''
-        for se in seq:
-            if se > args.vocab_size:
-                break
-            re += chardict[int(se)].strip()
-        for ta in targets:
-            if int(ta) == 0:
-                break
-            ret += chardict[int(ta)].strip()
-        ed = editdistance.eval(re, ret)
-        fp.write(testset.imgs[batch_idx][0].split(
-            '/')[-1] + ' ' + re + ' ' + ret +' '+ str(ed) +'\n')
-        if ed == 0:
-            t_ac += 1
-        t_ed += ed
-    print("accuracy : {}\n edit_distance: {}\n".format(
-        t_ac / len(testloader), t_ed / len(testloader)))
+        for ind, (seq, target) in enumerate(zip(seqs, targets)):
+            cal_n += 1
+            seq = seq[1:]
+            re = ''
+            ret = ''
+            for se in seq:
+                if se > args.vocab_size:
+                    break
+                re += chardict[int(se)].strip()
+            for ta in target:
+                if int(ta) == 0:
+                    break
+                ret += chardict[int(ta)].strip()
+            ed = editdistance.eval(re, ret)
+            fp.write(testset.imgs[batch_idx*args.batch_size+ind][0].split(
+                '/')[-1] + ' ' + re + ' ' + ret + ' ' + str(ed) + '\n')
+            if ed == 0:
+                t_ac += 1
+            t_ed += ed
+    if cal_n > 0:
+        print("accuracy : {}\n edit_distance: {}\n".format(
+            t_ac / cal_n, t_ed / cal_n))
+    else:
+        print("accuracy : {}\n edit_distance: {}\n".format(
+            t_ac / len(testloader), t_ed / len(testloader)))
     ''' test code
     img = torch.rand(2, 3, 48, 160).cuda()
     target = torch.zeros(2, 30).cuda()
@@ -231,7 +246,7 @@ def test(args, local_rank, distributed, testset):
     target[:, 10:19] = 2
     '''
 
-    # model.eval()
+    #1 model.eval()
     # seq, seq_score = model(img, target)
     # print(seq, seq_score)
 
@@ -247,9 +262,9 @@ def main():
         type=str,
     )
     parser.add_argument("--save_dir", default="./data",
-                        help="path to save dataset", type=str,)
+                        help="path to save dataset", type=str, )
     parser.add_argument(
-        "-d", "--data_name", default=['icpr'], help="path to save dataset", type=str, nargs='+',)
+        "-d", "--data_name", default=['icpr'], help="path to save dataset", type=str, nargs='+', )
     parser.add_argument("--is_training", '-t', default=False,
                         help="training or evaluation", action='store_true')
     parser.add_argument("--local_rank", type=int, default=0)
@@ -260,7 +275,7 @@ def main():
         action="store_true",
     )
     parser.add_argument("--ckpt", default=None,
-                        help="path to save dataset", type=str,)
+                        help="path to save dataset", type=str, )
     parser.add_argument(
         "opts",
         help="Modify config options using the command-line",
@@ -272,15 +287,16 @@ def main():
     args.num_layers = 2
     args.featrue_layers = 512
     args.hidden_dim = 512
-    args.vocab_size = 6499
+    args.vocab_size = 36
     args.out_seq_len = 30
     args.hidden_dim_de = 512
     args.embedding_size = 512
-    args.batch_size = 20
+    args.batch_size = 32
+    args.multi_bias = True
     ######
-    args.lr = 0.01
+    args.lr = 0.02
     args.checkpoint_dir = './model/'  # adam_lowlr/
-    args.optim = ''
+    args.optim = 'sgd'
     os.environ["CUDA_VISIBLE_DEVICES"] = str(0)
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     args.device = 'cuda'
@@ -304,14 +320,14 @@ def main():
     # TODO: data enhancement maybe in class dataset or in transform
     if args.is_training:
         transform = transforms.Compose([
-            transforms.Resize((48, 320)),  # (h, w)   48, 160   6 40
+            transforms.Resize((48, 160)),  # (h, w)   48, 160   6 40
             transforms.ToTensor(),
             transforms.Normalize((0.4914, 0.4822, 0.4465),
                                  (0.2023, 0.1994, 0.2010)),
         ])
     else:
         transform = transforms.Compose([
-            transforms.Resize((48, 320)),  # 32 280    
+            transforms.Resize((48, 160)),  # 32 280
             transforms.ToTensor(),
             transforms.Normalize((0.4914, 0.4822, 0.4465),
                                  (0.2023, 0.1994, 0.2010)),
@@ -324,19 +340,18 @@ def main():
         #                  './data/icpr/char2num.txt', transform)
         # ./2423/6/96_Flowerpots_29746.jpg flowerpots
         trainset = MyDataset(
-            ['icpr_train',], transform)
+            ['90kDICT32px_train', ], transform)
         sys.stdout = Logger(args.checkpoint_dir + '/log.txt')
         train(args, args.local_rank, args.distributed, trainset)
     else:
         # testset= MyDataset('/data4/ydb/dataset/recognition/imgs2_east_regions', transform=transform)
         # testset = MyDataset('./data/icpr/crop/',
         #                  './data/icpr/char2num.txt', transform)
-        testset = MyDataset('SynthChinese_test', transform)
+        testset = MyDataset('90kDICT32px_val', transform)
         test(args, args.local_rank, args.distributed, testset)
 
 
 if __name__ == '__main__':
-
     main()
     # model = Model()
     # device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
